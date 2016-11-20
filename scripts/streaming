@@ -111,7 +111,6 @@ if __name__ == '__main__':
     target_asset_class = 'Forex'
     target_instrument = 'EUR/USD'
     client = NadexRestApi()
-    client.Account.login()
     #for c in get_quote(client, target_market, target_asset_class):
     #    print(c)
     main(client, target_market, target_asset_class)

@@ -1,12 +1,9 @@
-Nadex API client
-================
+# Nadex API client
 
 Unofficial Nadex API client.
 This code is alpha.
 
-Features
-========
-## REST API
+# REST API
 Login & Retrieve Account Information
 Market Search to Populate a Market Grid
 Place a Trade via Market Order
@@ -16,10 +13,6 @@ Create a Watchlist
 Delete a Watchlist
 Quote Mode Trading
 Remove Existing Stop/Limit Order
-
-## Streaming API
-Account update
-Quote feed
 
 
 | Category | Function | Method  | Implemented | Tested |
@@ -50,8 +43,7 @@ Quote feed
 |          | cancel   |  No         | No     |
 
 
-Resources
-=========
+## Resources
 
 | Name | Opeartion | HTTP Method | URL path |
 | ---- | --------- | ----------- | -------- |
@@ -69,3 +61,8 @@ Resources
 
 
 Some resources share the same URL path.
+
+# Streaming API
+
+## Account update
+## Quote feed

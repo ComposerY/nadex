@@ -50,4 +50,7 @@ definition = {
         "type": "str",
         "format": "%H:%M:%s"
     },
+    "LTP": {
+        "example": "LS_id	V2-F-LTP|CH.U.USD-JPY.OPT-1-1.IP"
+    }
 }

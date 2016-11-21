@@ -43,10 +43,10 @@ def main(client, target_market, target_instrument):
     stream = NadexStreamApi(account.currentAccountId, xst, account.lightstreamerEndpoint)
     stream.connect()
     for instrument_id, epic in get_quote(client, target_market, target_instrument):
-        stream.subscribe_price_update(epic)
-    while True:
-        time.sleep(1)
-        print("sleeping")
+        print(instrument_id, epic)
+        stream.subscribe_price_update(instrument_id, epic)
+    input("{0:-^80}\n".format("HIT CR TO UNSUBSCRIBE AND DISCONNECT FROM LIGHTSTREAMER"))
+
 
 
 if __name__ == '__main__':

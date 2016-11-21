@@ -28,7 +28,10 @@ __credits__ = ''
 import logging
 import threading
 import traceback
-import nadex.compat as compat
+
+import six
+from six.moves.urllib.parse import urlparse, urlencode, urljoin
+from six.moves.urllib.request import urlopen, Request
 
 CONNECTION_URL_PATH = "lightstreamer/create_session.txt"
 CONTROL_URL_PATH = "lightstreamer/control.txt"
@@ -120,7 +123,7 @@ class LSClient(object):
     """Manages the communication with Lightstreamer Server"""
 
     def __init__(self, base_url, adapter_set="", user="", password=""):
-        self._base_url = compat.parse_url(base_url)
+        self._base_url = urlparse(base_url)
         self._adapter_set = adapter_set
         self._user = user
         self._password = password
@@ -133,9 +136,9 @@ class LSClient(object):
     def _encode_params(self, params):
         """Encode the parameter for HTTP POST submissions, but
         only for non empty values..."""
-        return compat._url_encode(
-                dict([(k, v) for (k, v) in compat._iteritems(params) if v])
-        )
+        return six.b(urlencode(
+                dict([(k, v) for k, v in params.items() if v])
+        ))
 
     def _call(self, base_url, url, body):
         """Open a network connection and performs HTTP Post
@@ -143,9 +146,13 @@ class LSClient(object):
         """
         # Combines the "base_url" with the
         # required "url" to be used for the specific request.
-        url = compat.urljoin(base_url.geturl(), url)
-        # logger.debug("urlopen %s with data=%s" % (url, body))
-        return compat._urlopen(url, data=self._encode_params(body))  # str_to_bytes
+        headers={'User-Agent': 'Lightstreamer iOS client/1.2.7'}
+        url = urljoin(base_url.geturl(), url)
+        logger.debug("urlopen %s with data=%s" % (url, body))
+        req = Request(url)
+        for k, v in headers.items():
+            req.add_header(k, v)
+        return urlopen(req, data=self._encode_params(body))
 
     def _set_control_link_url(self, custom_address=None):
         """Set the address to use for the Control Connection
@@ -154,7 +161,7 @@ class LSClient(object):
         if custom_address is None:
             self._control_url = self._base_url
         else:
-            parsed_custom_address = compat.parse_url("//" + custom_address)
+            parsed_custom_address = urlparse("//" + custom_address)
             self._control_url = parsed_custom_address._replace(
                     scheme=self._base_url[0]
             )
@@ -262,7 +269,7 @@ class LSClient(object):
             "LS_op": OP_ADD,
             #"LS_data_adapter": subscription.adapter,
             "LS_mode": subscription.mode,
-            "LS_schema": " ".join(subscription.field_names),
+            "LS_schema": None,  # " ".join(subscription.field_names),
             "LS_id": " ".join(subscription.item_names),
             "LS_requested_max_frequency": 1,  # rate limiting per second. "unlimited" for no limit
             "LS_snapshot": "true",  # fetch from the last snapshot
@@ -276,7 +283,7 @@ class LSClient(object):
         if subscription_key in self._subscriptions:
             server_response = self._control({
                 "LS_Table": subscription_key,
-                "LS_op": OP_DELETE
+                "LS_op": OP_DELETE  # FIXME: sometimes the op is "delete LS_session=<sessionId>"
             })
             logger.debug("Server response ---> <%s>", server_response)
 

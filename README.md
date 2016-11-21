@@ -64,5 +64,11 @@ Some resources share the same URL path.
 
 # Streaming API
 
-- Account update feed
-- Quote feed
+- Account Detail
+- Signal Centre
+- ERS events
+- MGE events
+- Heartbeat
+- Hierarchical instrument ID
+- Price Quote
+- Market

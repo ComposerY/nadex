@@ -4,15 +4,15 @@ Unofficial Nadex API client.
 This code is alpha.
 
 # REST API
-Login & Retrieve Account Information
-Market Search to Populate a Market Grid
-Place a Trade via Market Order
-Add Stop and/or Limit Order to an Open Trade
-Create an Entry Order
-Create a Watchlist
-Delete a Watchlist
-Quote Mode Trading
-Remove Existing Stop/Limit Order
+- Login & Retrieve Account Information
+- Market Search to Populate a Market Grid
+- Place a Trade via Market Order
+- Add Stop and/or Limit Order to an Open Trade
+- Create an Entry Order
+- Create a Watchlist
+- Delete a Watchlist
+- Quote Mode Trading
+- Remove Existing Stop/Limit Order
 
 
 | Category | Function | Method  | Implemented | Tested |
@@ -64,5 +64,5 @@ Some resources share the same URL path.
 
 # Streaming API
 
-## Account update
-## Quote feed
+- Account update feed
+- Quote feed

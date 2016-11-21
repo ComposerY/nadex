@@ -1,6 +1,6 @@
 import sys
 from nadex import connection
-from nadex.resources import *
+from nadex.resources import *  # no-qa
 
 
 class NadexRestApi(object):
@@ -48,9 +48,9 @@ class ApiResourceWrapper(object):
         return lambda *args, **kwargs: (getattr(self.resource_class, item))(*args, connection=self.connection, **kwargs)
 
     @classmethod
-    def str_to_class(cls, str):
+    def str_to_class(cls, name):
         """
         Transforms a string class name into a class object
         Assumes that the class is already loaded.
         """
-        return getattr(sys.modules[__name__], str)
+        return getattr(sys.modules[__name__], name)

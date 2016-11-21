@@ -3,13 +3,10 @@ Connection Module
 Handles HTTP operations
 """
 
-try:
-    from urllib import urlencode
-except ImportError:
-    from urllib.parse import urlencode
-
 import logging
+
 import requests
+from six.moves.urllib.parse import urlencode
 
 from .constants import TRADE_URL, IG_HEADERS
 from .rest_exceptions import *
@@ -108,7 +105,7 @@ class Connection(object):
 
     # Raw-er stuff
 
-    def make_request(self, method, url, data=None, params={}, headers={}):
+    def make_request(self, method, url, data=None, params=None, headers=None):
         response = self._run_method(method, url, data, params, headers)
         return self._handle_response(url, response)
 
@@ -139,8 +136,8 @@ class Connection(object):
             try:
                 result = res.json()
             except Exception as e:  # json might be invalid, or store might be down
-                e.message += " (_handle_response failed to decode JSON: " + str(res.content) + ")"
-                raise  # TODO better exception
+                log.exception(e)
+                raise
         elif res.status_code == 204 and not suppress_empty:
             raise EmptyResponseWarning("%d %s @ %s: %s" % (res.status_code, res.reason, url, res.content), res)
         elif res.status_code >= 500:

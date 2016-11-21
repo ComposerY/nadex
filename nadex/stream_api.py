@@ -4,7 +4,6 @@ from .lightstreamer import LSClient, Subscription
 
 
 class NadexStreamApi(object):
-
     def __init__(self, account_id, xst, endpoint):
         self.account_id = account_id
         self.ACCOUNT = account_id.upper().replace('-', '')
@@ -13,7 +12,7 @@ class NadexStreamApi(object):
                                   user=account_id,
                                   password='XST-{}'.format(xst))
         self.ls_client_keys = []
-        
+
     def connect(self):
         self.ls_client_keys = []
         self.ls_client.connect()
@@ -29,15 +28,15 @@ class NadexStreamApi(object):
         for key in self.ls_client_keys:
             self.unsubscribe(key)
         self.ls_client.disconnect()
-        
-    def ubsubscribe(self, key):
+
+    def unsubscribe(self, key):
         self.ls_client.unsubscribe(key)
 
     def subscribe_account_detail(self):
         s = Subscription(
-                mode="MERGE",
-                items=['V2-AD-AC_AVAILABLE_BALANCE'],
-                fields=["ACC"],
+            mode="MERGE",
+            items=['V2-AD-AC_AVAILABLE_BALANCE'],
+            fields=["ACC"],
         )
         s.addlistener(self.on_account_update)
         self.ls_client_keys.append(self.ls_client.subscribe(s))
@@ -66,8 +65,8 @@ class NadexStreamApi(object):
             items=["M___.MGE|{account}".format(account=self.ACCOUNT),
                    "M___.MG|{account}-ACTION".format(account=self.ACCOUNT),
                    "M___.MG|{account}-LGT".format(account=self.ACCOUNT),
-                   "M___.MGE|{account}-OP-JSON".format(account=self.ACCOUNT), # op? in JSON format
-                   "M___.MGE|{account}-WO-JSON".format(account=self.ACCOUNT), # working order in JSON format
+                   "M___.MGE|{account}-OP-JSON".format(account=self.ACCOUNT),  # op? in JSON format
+                   "M___.MGE|{account}-WO-JSON".format(account=self.ACCOUNT),  # working order in JSON format
                    "M___.MG|{account}-ACTION".format(account=self.ACCOUNT)
                    ],
             fields=["MGE", "ACTION", "LGT", "OP-JSON", "WO-JSON", "ACTION2"]
@@ -87,35 +86,35 @@ class NadexStreamApi(object):
     def subscribe_price_update(self, instrument_id, epic):
         # hierarchy instrument_id
         s = Subscription(
-                mode="MERGE",
-                items=['M___.MGE|HIER-{instrument_id}-JSON'.format(instrument_id=instrument_id)],
-                fields=["MGE"]
+            mode="MERGE",
+            items=['M___.MGE|HIER-{instrument_id}-JSON'.format(instrument_id=instrument_id)],
+            fields=["MGE"]
         )
         s.addlistener(self.on_instrument)
         self.ls_client_keys.append(self.ls_client.subscribe(s))
 
         # price
         s = Subscription(
-                mode="MERGE",
-                items=['V2-F-HIG,CPC,UBS,AS1,CBS,BS1,AK1,CPT,LOW,CSP,UTM,BD1|{epic}'.format(epic=epic)],
-                fields=["HIG", "CPC", "UBS", "AS1", "CBS", "BS1", "AK1", "CPT", "LOW", "CSP", "UTM", "BD1"],
+            mode="MERGE",
+            items=['V2-F-HIG,CPC,UBS,AS1,CBS,BS1,AK1,CPT,LOW,CSP,UTM,BD1|{epic}'.format(epic=epic)],
+            fields=["HIG", "CPC", "UBS", "AS1", "CBS", "BS1", "AK1", "CPT", "LOW", "CSP", "UTM", "BD1"],
         )
         s.addlistener(self.on_price)
         self.ls_client_keys.append(self.ls_client.subscribe(s))
 
         # market
         s = Subscription(
-                mode="MERGE",
-                items=['V2-F-MKT|{epic}'.format(epic=epic)],
-                fields=["MKT"],
+            mode="MERGE",
+            items=['V2-F-MKT|{epic}'.format(epic=epic)],
+            fields=["MKT"],
         )
         s.addlistener(self.on_market)
         self.ls_client_keys.append(self.ls_client.subscribe(s))
-        
+
     # A simple function acting as a Subscription listener
-    def on_account_update(self, balance_update):
+    def on_account_update(self, message):
         print(message.get('name'), message.get('values'))
-        
+
     def on_signal_centre(self, message):
         print(message.get('name'), message.get('values'))
 
@@ -140,7 +139,7 @@ class NadexStreamApi(object):
         print(message.get('name'), message.get('values'))
 
     def on_price(self, item_update):
-        name = item_update.get('name','').split('|')[1]
+        name = item_update.get('name', '').split('|')[1]
         print(name, item_update.get('values'))
 
     def on_market(self, message):

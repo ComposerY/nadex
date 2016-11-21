@@ -13,7 +13,9 @@
 #  limitations under the License.
 
 from __future__ import absolute_import, division, print_function
+
 import json
+
 __author__ = "Weswit s.r.l."
 __copyright__ = "Copyright 2015, http://www.weswit.com/"
 __credits__ = [""]
@@ -106,7 +108,7 @@ class Subscription(object):
             # previous ones if any.
             self._items_map[item_pos] = dict([(k, self._decode(v, curr_item.get(k))) for k, v
                                               in list(undecoded_item.items())
-            ])
+                                              ])
         # Make an item info as a new event to be passed to listeners
         item_info = {
             'pos': item_pos,
@@ -137,7 +139,7 @@ class LSClient(object):
         """Encode the parameter for HTTP POST submissions, but
         only for non empty values..."""
         return six.b(urlencode(
-                dict([(k, v) for k, v in params.items() if v])
+            dict([(k, v) for k, v in params.items() if v])
         ))
 
     def _call(self, base_url, url, body):
@@ -146,7 +148,7 @@ class LSClient(object):
         """
         # Combines the "base_url" with the
         # required "url" to be used for the specific request.
-        headers={'User-Agent': 'Lightstreamer iOS client/1.2.7'}
+        headers = {'User-Agent': 'Lightstreamer iOS client/1.2.7'}
         url = urljoin(base_url.geturl(), url)
         logger.debug("urlopen %s with data=%s" % (url, body))
         req = Request(url)
@@ -163,7 +165,7 @@ class LSClient(object):
         else:
             parsed_custom_address = urlparse("//" + custom_address)
             self._control_url = parsed_custom_address._replace(
-                    scheme=self._base_url[0]
+                scheme=self._base_url[0]
             )
 
     def _control(self, params):
@@ -184,16 +186,16 @@ class LSClient(object):
         a new session.
         """
         self._stream_connection = self._call(
-                self._base_url,
-                CONNECTION_URL_PATH,
-                {
-                    "LS_user": self._user,
-                    "LS_password": self._password,
-                    "LS_adapter_set": self._adapter_set,
-                    "LS_content_length": 50000000,
-                    "LS_report_info": True,
-                    "LS_ios_version": "10.1.1"
-                }
+            self._base_url,
+            CONNECTION_URL_PATH,
+            {
+                "LS_user": self._user,
+                "LS_password": self._password,
+                "LS_adapter_set": self._adapter_set,
+                "LS_content_length": 50000000,
+                "LS_report_info": True,
+                "LS_ios_version": "10.1.1"
+            }
         )
         server_response = self._get_stream()
         if server_response == OK_CMD:
@@ -212,8 +214,8 @@ class LSClient(object):
             # Start a new thread to handle real time updates sent
             # by Lightstreamer Server on the stream connection.
             self._stream_connection_thread = threading.Thread(
-                    name="STREAM-CONN-THREAD",
-                    target=self._receive
+                name="STREAM-CONN-THREAD",
+                target=self._receive
             )
             self._stream_connection_thread.setDaemon(True)
             self._stream_connection_thread.start()
@@ -267,7 +269,7 @@ class LSClient(object):
         self._control({
             "LS_table": self._current_subscription_key,
             "LS_op": OP_ADD,
-            #"LS_data_adapter": subscription.adapter,
+            # "LS_data_adapter": subscription.adapter,
             "LS_mode": subscription.mode,
             "LS_schema": None,  # " ".join(subscription.field_names),
             "LS_id": " ".join(subscription.item_names),
@@ -302,7 +304,7 @@ class LSClient(object):
         logger.debug("Received update message ---> <%s>", update_message)
         idx = update_message.index(',')
         tok = update_message[:idx]
-        table, item = int(tok), update_message[idx+1:]
+        table, item = int(tok), update_message[idx + 1:]
         if table in self._subscriptions:
             self._subscriptions[table].notifyupdate(item)
         else:
@@ -363,5 +365,3 @@ class LSClient(object):
         self._session.clear()
         self._subscriptions.clear()
         self._current_subscription_key = 0
-
-#logging.basicConfig(level=logging.DEBUG)

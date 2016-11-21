@@ -1,9 +1,11 @@
 class NadexError(Exception):
     pass
 
+
 class NadexAuthError(NadexError):
     message = ("You must set NADEXUSERNAME and NADEXPASSWORD"
                "in your environment with your Nadex username and password")
+
 
 class NadexMarketListRetrieveError(NadexError):
     message = "failed to retrieve the market list from the exchange: market_id={}"
@@ -23,7 +25,6 @@ class NadexQuoteRetrieveError(NadexError):
 
 class NadexEpicRetrieveError(NadexError):
     message = "failed to retrieve the epic: epic={epic}"
-
 
 # "ERROR: get_epic(): failed to retrieve the market list from the exchange for market market_id\n"
 # "ERROR: get_epic(): invalid period must be one of: daily

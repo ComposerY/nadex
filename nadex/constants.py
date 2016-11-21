@@ -1,7 +1,7 @@
 PROD_TRADE_URL = 'https://trade.nadex.com/iDeal'
 DEMO_TRADE_URL = 'https://demo-trade.nadex.com/iDeal'
 
-#TRADE_URL = PROD_TRADE_URL
+# TRADE_URL = PROD_TRADE_URL
 TRADE_URL = DEMO_TRADE_URL
 
 IG_HEADERS = {

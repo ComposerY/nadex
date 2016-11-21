@@ -24,7 +24,8 @@ setup(
                  'scripts/get-balance',
                  'scripts/get-markets',
                  'scripts/get-positions',
-                 'scripts/get-timeseries'
+                 'scripts/get-timeseries',
+                 'scripts/streamer',
         ],
         install_requires=['requests'],
         test_suite='tests'

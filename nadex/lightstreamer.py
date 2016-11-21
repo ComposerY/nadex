@@ -180,11 +180,13 @@ class LSClient(object):
                 self._base_url,
                 CONNECTION_URL_PATH,
                 {
-                    # "LS_op2": 'create',
-                    # "LS_cid": 'mgQkwtwdysogQz2BJ4Ji kOj2Bg',
-                    "LS_adapter_set": self._adapter_set,
                     "LS_user": self._user,
-                    "LS_password": self._password}
+                    "LS_password": self._password,
+                    "LS_adapter_set": self._adapter_set,
+                    "LS_content_length": 50000000,
+                    "LS_report_info": True,
+                    "LS_ios_version": "10.1.1"
+                }
         )
         server_response = self._get_stream()
         if server_response == OK_CMD:

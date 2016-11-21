@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+import logging
+import traceback
+import time
+
+from pprint import pprint
+from nadex import NadexRestApi, NadexStreamApi
+
+
+logging.basicConfig(level=logging.INFO)
+
+
+def get_quote(client, target_market, target_asset_class):
+    markets = client.Market.all()
+    for m in markets:
+        if m.name != target_market:
+            #print("ignore", m.name)
+            continue
+        # get list of instruments for the market
+        asset_classes = client.Market.get(m.id)
+        for asset_class in asset_classes:
+            if asset_class.name != target_asset_class:
+                #print("  ignore", asset_class.name)
+                continue
+            expiries = client.Timeseries.get(asset_class.id)
+            if expiries:
+                epic = None
+                for expiry in expiries:
+                    # print(expiry.id, expiry.name)
+                    contracts = client.Contract.get(expiry.id)
+                    for contract in contracts:
+                        yield (expiry.id, contract.epic)
+            else:
+                contracts = client.Contract.get(asset_class.id)
+                for contract in contracts:
+                    yield (asset_class.id, contract.epic)
+
+def main(client, target_market, target_instrument):
+    account = client.Account.login()
+    xst = client.connection.get_xst()
+    stream = NadexStreamApi(account.currentAccountId, xst, account.lightstreamerEndpoint)
+    stream.connect()
+    for instrument_id, epic in get_quote(client, target_market, target_instrument):
+        stream.subscribe_price_update(epic)
+    while True:
+        time.sleep(1)
+        print("sleeping")
+
+
+if __name__ == '__main__':
+    target_market = '5 Minute Binaries'
+    target_asset_class = 'Forex'
+    target_instrument = 'EUR/USD'
+    client = NadexRestApi()
+    main(client, target_market, target_asset_class)

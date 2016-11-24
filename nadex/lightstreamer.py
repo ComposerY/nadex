@@ -1,4 +1,6 @@
-#  Copyright 2014 Weswit s.r.l.
+#!/usr/bin/python
+
+#  Copyright (c) Lightstreamer Srl.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,23 +14,10 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from __future__ import absolute_import, division, print_function
-
-import json
-
-__author__ = "Weswit s.r.l."
-__copyright__ = "Copyright 2015, http://www.weswit.com/"
-__credits__ = [""]
-__license__ = "Apache"
-__version__ = "0.0.1"
-__maintainer__ = "Weswit"
-__email__ = ""
-__status__ = "Development"
-__url__ = 'https://github.com/Weswit/Lightstreamer-example-StockList-client-python'
-__credits__ = ''
-
+import sys
 import logging
 import threading
+import time
 import traceback
 
 import six
@@ -36,17 +25,14 @@ from six.moves.urllib.parse import urlparse, urlencode, urljoin
 from six.moves.urllib.request import urlopen, Request
 
 CONNECTION_URL_PATH = "lightstreamer/create_session.txt"
+BIND_URL_PATH = "lightstreamer/bind_session.txt"
 CONTROL_URL_PATH = "lightstreamer/control.txt"
-
 # Request parameter to create and activate a new Table.
 OP_ADD = "add"
-
 # Request parameter to delete a previously created Table.
 OP_DELETE = "delete"
-
 # Request parameter to force closure of an existing session.
 OP_DESTROY = "destroy"
-
 # List of possible server responses
 PROBE_CMD = "PROBE"
 END_CMD = "END"
@@ -55,16 +41,21 @@ ERROR_CMD = "ERROR"
 SYNC_ERROR_CMD = "SYNC ERROR"
 OK_CMD = "OK"
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
+handler.setFormatter(formatter)
+log.addHandler(handler)
+log.setLevel(logging.DEBUG)
 
 
 class Subscription(object):
     """Represents a Subscription to be submitted to a Lightstreamer Server."""
 
-    def __init__(self, mode, items, fields=None, adapter=""):
+    def __init__(self, mode, items, fields, adapter=""):
         self.item_names = items
         self._items_map = {}
-        self.field_names = fields or []
+        self.field_names = fields
         self.adapter = adapter
         self.mode = mode
         self.snapshot = "true"
@@ -94,21 +85,18 @@ class Subscription(object):
         """
         # Tokenize the item line as sent by Lightstreamer
         toks = item_line.rstrip('\r\n').split('|')
-        item_pos = int(toks[0])
-        if toks[1].startswith('SDM '):
-            assert item_pos == 1, "SDM cannot have multiple merge"
-            self._items_map[item_pos] = json.loads(toks[1][4:])  # skip "SDM "
-        else:
-            undecoded_item = dict(list(zip(self.field_names, toks[1:])))
+        undecoded_item = dict(list(zip(self.field_names, toks[1:])))
 
-            # Retrieve the previous item stored into the map, if present.
-            # Otherwise create a new empty dict.
-            curr_item = self._items_map.get(item_pos, {})
-            # Update the map with new values, merging with the
-            # previous ones if any.
-            self._items_map[item_pos] = dict([(k, self._decode(v, curr_item.get(k))) for k, v
-                                              in list(undecoded_item.items())
-                                              ])
+        # Retrieve the previous item stored into the map, if present.
+        # Otherwise create a new empty dict.
+        item_pos = int(toks[0])
+        curr_item = self._items_map.get(item_pos, {})
+        # Update the map with new values, merging with the
+        # previous ones if any.
+        self._items_map[item_pos] = dict([
+            (k, self._decode(v, curr_item.get(k))) for k, v
+            in list(undecoded_item.items())
+        ])
         # Make an item info as a new event to be passed to listeners
         item_info = {
             'pos': item_pos,
@@ -134,12 +122,13 @@ class LSClient(object):
         self._current_subscription_key = 0
         self._stream_connection = None
         self._stream_connection_thread = None
+        self._bind_counter = 0
 
     def _encode_params(self, params):
         """Encode the parameter for HTTP POST submissions, but
         only for non empty values..."""
         return six.b(urlencode(
-            dict([(k, v) for k, v in params.items() if v])
+            dict([(k, v) for (k, v) in params.items() if v])
         ))
 
     def _call(self, base_url, url, body):
@@ -148,9 +137,8 @@ class LSClient(object):
         """
         # Combines the "base_url" with the
         # required "url" to be used for the specific request.
-        headers = {'User-Agent': 'Lightstreamer iOS client/1.2.7'}
         url = urljoin(base_url.geturl(), url)
-        logger.debug("urlopen %s with data=%s" % (url, body))
+        headers = {'User-Agent': 'Lightstreamer iOS client/1.2.7'}
         req = Request(url)
         for k, v in headers.items():
             req.add_header(k, v)
@@ -176,7 +164,7 @@ class LSClient(object):
         response = self._call(self._control_url, CONTROL_URL_PATH, params)
         return response.readline().decode("utf-8").rstrip()
 
-    def _get_stream(self):
+    def _read_from_stream(self):
         """Read a single line of content of the Stream Connection."""
         line = self._stream_connection.readline().decode("utf-8").rstrip()
         return line
@@ -189,21 +177,37 @@ class LSClient(object):
             self._base_url,
             CONNECTION_URL_PATH,
             {
-                "LS_user": self._user,
-                "LS_password": self._password,
                 "LS_adapter_set": self._adapter_set,
-                "LS_content_length": 50000000,
-                "LS_report_info": True,
-                "LS_ios_version": "10.1.1"
+                "LS_user": self._user,
+                "LS_password": self._password
             }
         )
-        server_response = self._get_stream()
-        if server_response == OK_CMD:
-            # Parsing session information
+        stream_line = self._read_from_stream()
+        self._handle_stream(stream_line)
+
+    def bind(self):
+        """Replace a completely consumed connection in listening for an active
+        Session.
+        """
+        self._stream_connection = self._call(
+            self._control_url,
+            BIND_URL_PATH,
+            {
+             "LS_session": self._session["SessionId"]
+             }
+        )
+
+        self._bind_counter += 1
+        stream_line = self._read_from_stream()
+        self._handle_stream(stream_line)
+
+    def _handle_stream(self, stream_line):
+        if stream_line == OK_CMD:
+            # Parsing session inkion
             while 1:
-                line = self._get_stream()
-                if line:
-                    session_key, session_value = line.split(":", 1)
+                next_stream_line = self._read_from_stream()
+                if next_stream_line:
+                    session_key, session_value = next_stream_line.split(":", 1)
                     self._session[session_key] = session_value
                 else:
                     break
@@ -214,24 +218,24 @@ class LSClient(object):
             # Start a new thread to handle real time updates sent
             # by Lightstreamer Server on the stream connection.
             self._stream_connection_thread = threading.Thread(
-                name="STREAM-CONN-THREAD",
+                name="STREAM-CONN-THREAD-{0}".format(self._bind_counter),
                 target=self._receive
             )
             self._stream_connection_thread.setDaemon(True)
             self._stream_connection_thread.start()
         else:
             lines = self._stream_connection.readlines()
-            lines.insert(0, server_response)
-            logger.error("Server response error: \n%s" % "".join(lines))
+            lines.insert(0, stream_line)
+            log.error("Server response error: \n{0}".format("".join(lines)))
             raise IOError()
 
     def _join(self):
         """Await the natural STREAM-CONN-THREAD termination."""
         if self._stream_connection_thread:
-            logger.debug("Waiting for STREAM-CONN-THREAD to terminate")
+            log.debug("Waiting for thread to terminate")
             self._stream_connection_thread.join()
             self._stream_connection_thread = None
-            logger.debug("STREAM-CONN-THREAD terminated")
+            log.debug("Thread terminated")
 
     def disconnect(self):
         """Request to close the session previously opened with
@@ -240,11 +244,10 @@ class LSClient(object):
         if self._stream_connection is not None:
             # Close the HTTP connection
             self._stream_connection.close()
-            logger.debug("Connection closed")
-            # self._join()
+            log.debug("Connection closed")
             print("DISCONNECTED FROM LIGHTSTREAMER")
         else:
-            logger.warning("No connection to Lightstreamer")
+            log.warning("No connection to Lightstreamer")
 
     def destroy(self):
         """Destroy the session previously opened with
@@ -257,7 +260,7 @@ class LSClient(object):
                 # since it is handled by thread completion.
                 self._join()
             else:
-                logger.warning("No connection to Lightstreamer")
+                log.warning("No connection to Lightstreamer")
 
     def subscribe(self, subscription):
         """"Perform a subscription request to Lightstreamer Server."""
@@ -266,16 +269,17 @@ class LSClient(object):
         self._subscriptions[self._current_subscription_key] = subscription
 
         # Send the control request to perform the subscription
-        self._control({
-            "LS_table": self._current_subscription_key,
+        server_response = self._control({
+            "LS_Table": self._current_subscription_key,
             "LS_op": OP_ADD,
             # "LS_data_adapter": subscription.adapter,
             "LS_mode": subscription.mode,
-            "LS_schema": None,  # " ".join(subscription.field_names),
+            "LS_schema":None, # " ".join(subscription.field_names),
             "LS_id": " ".join(subscription.item_names),
             "LS_requested_max_frequency": 1,  # rate limiting per second. "unlimited" for no limit
             "LS_snapshot": "true",  # fetch from the last snapshot
         })
+        log.debug("Server response ---> <{0}>".format(server_response))
         return self._current_subscription_key
 
     def unsubscribe(self, subscription_key):
@@ -284,84 +288,90 @@ class LSClient(object):
         """
         if subscription_key in self._subscriptions:
             server_response = self._control({
-                "LS_Table": subscription_key,
-                "LS_op": OP_DELETE  # FIXME: sometimes the op is "delete LS_session=<sessionId>"
+                "LS_Table": subcription_key,
+                "LS_op": OP_DELETE
             })
-            logger.debug("Server response ---> <%s>", server_response)
+            log.debug("Server response ---> <{0}>".format(server_response))
 
             if server_response == OK_CMD:
                 del self._subscriptions[subscription_key]
-                logger.info("Unsubscribed successfully")
+                log.info("Unsubscribed successfully")
             else:
-                logger.warning("Server error")
+                log.warning("Server error")
         else:
-            logger.warning("No subscription key %d found!" % subscription_key)
+            log.warning("No subscription key {0} found!".format(subscription_key))
 
     def _forward_update_message(self, update_message):
         """Forwards the real time update to the relative
         Subscription instance for further dispatching to its listeners.
         """
-        logger.debug("Received update message ---> <%s>", update_message)
-        idx = update_message.index(',')
-        tok = update_message[:idx]
-        table, item = int(tok), update_message[idx + 1:]
+
+        log.debug("Received update message ---> <{0}>".format(update_message))
+        tok = update_message.split(',', 1)
+        table, item = int(tok[0]), tok[1]
         if table in self._subscriptions:
             self._subscriptions[table].notifyupdate(item)
         else:
-            logger.warning("No subscription found!")
+            log.warning("No subscription found!")
 
     def _receive(self):
+        rebind = False
         receive = True
         while receive:
-            logger.debug("Waiting for a new message")
+            log.debug("Waiting for a new message")
             try:
-                message = self._get_stream()
-                logger.debug("Received message ---> <%s>" % message)
+                message = self._read_from_stream()
+                log.debug("Received message ---> <{0}>".format(message))
             except Exception:
-                logger.error("Communication error")
+                log.error("Communication error")
                 print(traceback.format_exc())
                 message = None
 
             if message is None:
                 receive = False
-                logger.warning("No new message received")
+                log.warning("No new message received")
             elif message == PROBE_CMD:
                 # Skipping the PROBE message, keep on receiving messages.
-                logger.debug("PROBE message")
+                log.debug("PROBE message")
             elif message.startswith(ERROR_CMD):
                 # Terminate the receiving loop on ERROR message
                 receive = False
-                logger.error("ERROR")
+                log.error("ERROR")
             elif message.startswith(LOOP_CMD):
                 # Terminate the the receiving loop on LOOP message.
                 # A complete implementation should proceed with
                 # a rebind of the session.
-                logger.debug("LOOP")
+                log.debug("LOOP")
                 receive = False
+                rebind = True
             elif message.startswith(SYNC_ERROR_CMD):
                 # Terminate the receiving loop on SYNC ERROR message.
                 # A complete implementation should create a new session
                 # and re-subscribe to all the old items and relative fields.
-                logger.error("SYNC ERROR")
+                log.error("SYNC ERROR")
                 receive = False
             elif message.startswith(END_CMD):
                 # Terminate the receiving loop on END message.
                 # The session has been forcibly closed on the server side.
                 # A complete implementation should handle the
                 # "cause_code" if present.
-                logger.info("Connection closed by the server")
+                log.info("Connection closed by the server")
                 receive = False
             elif message.startswith("Preamble"):
                 # Skipping Preamble message, keep on receiving messages.
-                logger.debug("Preamble")
+                log.debug("Preamble")
             else:
                 self._forward_update_message(message)
 
-        logger.debug("Closing connection")
-        # Clear internal data structures for session
-        # and subscriptions management.
-        # self._stream_connection.close()
-        self._stream_connection = None
-        self._session.clear()
-        self._subscriptions.clear()
-        self._current_subscription_key = 0
+        if not rebind:
+            log.debug("Closing connection")
+            # Clear internal data structures for session
+            # and subscriptions management.
+            self._stream_connection.close()
+            self._stream_connection = None
+            self._session.clear()
+            self._subscriptions.clear()
+            self._current_subscription_key = 0
+        else:
+            log.debug("Binding to this active session")
+            self.bind()

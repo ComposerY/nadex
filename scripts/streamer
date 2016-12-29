@@ -35,13 +35,13 @@ def get_quote(client, target_market, target_asset_class):
                     yield (asset_class.id, contract.epic)
 
 
-def main(client, target_market, target_instrument):
+def main(client, target_market, target_asset_class):
     account = client.Account.login()
     xst = client.connection.get_xst()
     stream = NadexStreamApi(account.currentAccountId, xst, account.lightstreamerEndpoint)
     stream.connect()
     id = None
-    for instrument_id, epic in get_quote(client, target_market, target_instrument):
+    for instrument_id, epic in get_quote(client, target_market, target_asset_class):
         if id is None:
             id = instrument_id
         if id != instrument_id:

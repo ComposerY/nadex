@@ -42,11 +42,6 @@ SYNC_ERROR_CMD = "SYNC ERROR"
 OK_CMD = "OK"
 
 log = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s %(name)-12s %(levelname)-8s %(message)s')
-handler.setFormatter(formatter)
-log.addHandler(handler)
-log.setLevel(logging.DEBUG)
 
 
 class Subscription(object):

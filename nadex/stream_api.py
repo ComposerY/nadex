@@ -1,6 +1,10 @@
 import json
+import logging
 
 from .lightstreamer import LSClient, Subscription
+
+
+logger = logging.getLogger(__name__)
 
 
 class NadexStreamApi(object):
@@ -12,6 +16,7 @@ class NadexStreamApi(object):
                                   user=account_id,
                                   password='XST-{}'.format(xst))
         self.ls_client_keys = []
+        self.current_epics = {}
 
     def connect(self):
         self.ls_client_keys = []
@@ -60,13 +65,43 @@ class NadexStreamApi(object):
         self.ls_client_keys.append(self.ls_client.subscribe(s))
 
     def subscribe_mge(self):
+        """
+        Message
+        RAD - refresh account detail
+        ALT - alert message
+        ARS
+        HIU
+        LGN
+        INV
+        AFC
+        MSG - status=<msgStatus>|body=<msg> IN_PRGRESS, CONFIRMED, WORKING, PARTIAL_FILL, REJECTED
+            - order_type=<orderType>|body=<msg> OTC, DMA, FUNDING
+        OPU - OP-JSON message
+              OpenPositionDelete
+              OpenPositionUpdate
+                epic business area F
+              EPIC_REPLACE
+              OpenPositionEpicReplace
+        OHU - Order History
+        WOU - working order update
+              WorkingOrderDelete
+              WorkingOrderAdd
+              WorkingOrderUpdate
+              WorkingOrderEpicReplace
+        LGT - session revocation caused by account being suspended via Wintergrate
+        ALU - alert?
+        ABU - Available Balance Update
+              available balance
+              available cache
+              profit loss
+        """
         s = Subscription(
             mode="RAW",
             items=["M___.MGE|{account}".format(account=self.ACCOUNT),
                    "M___.MG|{account}-ACTION".format(account=self.ACCOUNT),
                    "M___.MG|{account}-LGT".format(account=self.ACCOUNT),
-                   "M___.MGE|{account}-OP-JSON".format(account=self.ACCOUNT),  # op? in JSON format
-                   "M___.MGE|{account}-WO-JSON".format(account=self.ACCOUNT),  # working order in JSON format
+                   "M___.MGE|{account}-OP-JSON".format(account=self.ACCOUNT),  # open position updates in JSON
+                   "M___.MGE|{account}-WO-JSON".format(account=self.ACCOUNT),  # working order updates in JSON
                    "M___.MG|{account}-ACTION".format(account=self.ACCOUNT)
                    ],
             fields=["MGE", "ACTION", "LGT", "OP-JSON", "WO-JSON", "ACTION2"]
@@ -75,6 +110,9 @@ class NadexStreamApi(object):
         self.ls_client_keys.append(self.ls_client.subscribe(s))
 
     def subscribe_heartbeat(self):
+        """
+        Heartbeat
+        """
         s = Subscription(
             mode="MERGE",
             items=['M___.HB|HB.U.HEARTBEAT.IP'],
@@ -83,7 +121,16 @@ class NadexStreamApi(object):
         s.addlistener(self.on_heartbeat)
         self.ls_client_keys.append(self.ls_client.subscribe(s))
 
-    def subscribe_price_update(self, instrument_id, epic):
+    def subscribe_epic(self, instrument_id, epic):
+        """
+        Price / Quote
+        """
+        if epic in self.current_epics:
+            logger.info("already subscribed: %s", epic)
+            return
+
+        self.current_epics.setdefault(epic, [])
+
         # hierarchy instrument_id
         s = Subscription(
             mode="MERGE",
@@ -91,16 +138,20 @@ class NadexStreamApi(object):
             fields=["MGE"]
         )
         s.addlistener(self.on_instrument)
-        self.ls_client_keys.append(self.ls_client.subscribe(s))
+        key = self.ls_client.subscribe(s)
+        self.current_epics[epic].append(key)
 
         # price
         s = Subscription(
             mode="MERGE",
-            items=['V2-F-HIG,CPC,UBS,AS1,CBS,BS1,AK1,CPT,LOW,CSP,UTM,BD1|{epic}'.format(epic=epic)],
-            fields=["HIG", "CPC", "UBS", "AS1", "CBS", "BS1", "AK1", "CPT", "LOW", "CSP", "UTM", "BD1"],
+            # web client subscribes to
+            #       V2-F-UBS,BS1,BD1,AK1,AS1,UTM| NB.I.AUD-USD.OPT-285-5-23Nov16.IP
+            items=['V2-F-UBS,BS1,BD1,AK1,AS1,UTM|{epic}'.format(epic=epic)],
+            fields=["UBS", "BS1", "BD1", "AK1", "AS1", "UTM"],
         )
         s.addlistener(self.on_price)
-        self.ls_client_keys.append(self.ls_client.subscribe(s))
+        key = self.ls_client.subscribe(s)
+        self.current_epics[epic].append(key)
 
         # market
         s = Subscription(
@@ -108,39 +159,81 @@ class NadexStreamApi(object):
             items=['V2-F-MKT|{epic}'.format(epic=epic)],
             fields=["MKT"],
         )
-        s.addlistener(self.on_market)
-        self.ls_client_keys.append(self.ls_client.subscribe(s))
+        key = self.ls_client.subscribe(s)
+        self.current_epics[epic].append(key)
+
+    def ubsubscribe_epic(self, epic):
+        pass
 
     # A simple function acting as a Subscription listener
     def on_account_update(self, message):
-        print(message.get('name'), message.get('values'))
+        """
+        Account
+        """
+        logger.info("name=%s values=%s", message.get('name'), message.get('values'))
 
     def on_signal_centre(self, message):
-        print(message.get('name'), message.get('values'))
+        """
+        Signal
+        """
+        logger.info("name=%s values=%s", message.get('name'), message.get('values'))
 
     def on_ers(self, message):
-        print(message.get('name'), message.get('values'))
+        logger.info("name=%s values=%s", message.get('name'), message.get('values'))
 
     def on_mge(self, message):
+        print(message)
         name = message.get('name')
         values = message.get('values') or {}
         mge = values.get('MGE')
         if name.endswith('-JSON') and mge:
             if mge.startswith('WOU '):
+                print(mge[4:])
                 mge = json.loads(mge[4:])
-                print('WOU', mge)
+                logger.info('WOU %s', mge)
                 return
-        print(name, mge)
+        logger.info("%s %s", name, mge)
+
 
     def on_heartbeat(self, message):
-        print(message.get('name'), message.get('values'))
+        #logger.info(message.get('name'), message.get('values'))
+        pass
 
     def on_instrument(self, message):
-        print(message.get('name'), message.get('values'))
+        """
+        Process hierarchyId3 messages
+        """
+        name = message.get('name')
+        values = message.get('values')
+        print(values)
+        if not name.endswith('-JSON'):
+            logger.info("%s %s", message.get('name'), message.get('values'))
+
+        header= values.get('header')
+        body = values.get('body')
+        #---
+        if header and header.get('contentType') == 'InstrumentDeletionMessage':
+            instrument_id = body.get('hierarchyId3')
+            epic = body.get('epic')
+            logger.info("start delete on EPIC %s", epic)
+            if epic in self.current_epics:
+                logger.info("unsubscribe epic %s", epic)
+                self.unsubscribe_epic(epic)
+                self.current_epics.pop('epic')
+                return
+        elif body:
+            # header.get('contentType') == 'InstrumentCreationRefresh'
+            instrument_id = body.get('persistInStrument', {}).get('hierarchyId3')
+            epic = body.get('persistInStrument', {}).get('epic')
+            if instrument_id and epic:
+                logger.info("Instrument creation refresh: %s %s", instrument_id, epic)
+                self.subscribe_epic(instrument_id, epic)
+            else:
+                logger.info("duplicate epic to add: %s", epic)
 
     def on_price(self, item_update):
         name = item_update.get('name', '').split('|')[1]
-        print(name, item_update.get('values'))
+        logger.info("%s %s", name, item_update.get('values'))
 
     def on_market(self, message):
-        print(message.get('name'), message.get('values'))
+        logger.info("%s %s", message.get('name'), message.get('values'))

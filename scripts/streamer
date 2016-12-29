@@ -5,7 +5,8 @@ import logging
 
 from nadex import NadexRestApi, NadexStreamApi
 
-logging.basicConfig(level=logging.INFO)
+FORMAT = '%(asctime)-15s %(message)s'
+logging.basicConfig(format=FORMAT, level=logging.INFO)
 
 
 def get_quote(client, target_market, target_asset_class):
@@ -39,9 +40,13 @@ def main(client, target_market, target_instrument):
     xst = client.connection.get_xst()
     stream = NadexStreamApi(account.currentAccountId, xst, account.lightstreamerEndpoint)
     stream.connect()
+    id = None
     for instrument_id, epic in get_quote(client, target_market, target_instrument):
-        print(instrument_id, epic)
-        stream.subscribe_price_update(instrument_id, epic)
+        if id is None:
+            id = instrument_id
+        if id != instrument_id:
+            break
+        stream.subscribe_epic(instrument_id, epic)
     input("{0:-^80}\n".format("HIT CR TO UNSUBSCRIBE AND DISCONNECT FROM LIGHTSTREAMER"))
 
 

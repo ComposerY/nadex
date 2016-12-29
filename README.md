@@ -45,7 +45,7 @@ This code is alpha.
 
 ## Resources
 
-| Name | Opeartion | HTTP Method | URL path |
+| Name | Operation | HTTP Method | URL path |
 | ---- | --------- | ----------- | -------- |
 | Account | login | POST | v2/security/authenticate |
 | Market | list | GET | markets/navigation |

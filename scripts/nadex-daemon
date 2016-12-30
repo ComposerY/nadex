@@ -1,7 +1,96 @@
 #!/usr/bin/env python3
+"""
+Nadex Daemon
+
+- provide REST API
+"""
+import argparse
 import daemon
+import logging
+import logging.config
+import os
+import sys
+import threading
 
-from nadex import daemon as nadex_daemon
+from nadex import NadexRestApi, NadexStreamApi
+from nadex.web import app, init_app
 
-with daemon.DaemonContext():
-     nadex_daemon()
+
+FORMAT = '%(asctime)-15s %(message)s'
+
+def get_quote(client, target_market, target_asset_class):
+    markets = client.Market.all()
+    for m in markets:
+        if m.name != target_market:
+            continue
+        print("continue", m.name, m.id)
+        # get list of instruments for the market
+        asset_classes = client.Market.get(m.id)
+        for asset_class in asset_classes:
+            print(repr(asset_class.name), repr(target_asset_class))
+            if asset_class.name != target_asset_class:
+                continue
+            print("  continue", asset_class.name)
+            expiries = client.Timeseries.get(asset_class.id)
+            if expiries:
+                epic = None
+                for expiry in expiries:
+                    print(expiry.id, expiry.name)
+                    contracts = client.Contract.get(expiry.id)
+                    for contract in contracts:
+                        yield (expiry.id, contract.epic)
+            else:
+                contracts = client.Contract.get(asset_class.id)
+                for contract in contracts:
+                    yield (asset_class.id, contract.epic)
+
+
+def main(username=None, password=None, mode='dev', port=8080):
+
+    dir = os.path.dirname(__file__)
+    logging.config.fileConfig(os.path.join(dir,'logging.conf'))
+
+    client = NadexRestApi()
+    account = client.Account.login()
+
+    xst = client.connection.get_xst()
+    streamer = NadexStreamApi(account.currentAccountId, xst, account.lightstreamerEndpoint)
+    streamer.connect()
+
+    init_app(client, streamer)
+
+    rest_service_thread = threading.Thread(name='reset_service', target=app.run,
+                                           kwargs=dict(threaded=True))
+    rest_service_thread.start()
+
+    target_market = '5 Minute Binaries'
+    target_asset_class = 'Forex'
+    target_instrument = 'EUR/USD'
+    id = None
+    print('getting quote')
+    for instrument_id, epic in get_quote(client, target_market, target_asset_class):
+        print(instrument_id, epic)
+        if id is None:
+            id = instrument_id
+        if id != instrument_id:
+            break
+        streamer.subscribe_epic(instrument_id, epic)
+    print('done')
+if __name__ == '__main__':
+     parser = argparse.ArgumentParser(description='Nadex daemon')
+     parser.add_argument('-p', '--port', action='store', type=int, default=8080, help='REST API server port')
+     parser.add_argument('-m', '--mode', action='store', type=str, default='dev', help='prod or dev mode')
+     args = parser.parse_args()
+     if not all([os.environ.get('NADEXUSERNAME'), os.environ.get('NADEXPASSWORD')]):
+         print("Please set NADEXUSER and NADEXPASSWORD environment variables", file=sys.stderr)
+         sys.exit(2)
+     config = dict(
+         username=os.environ.get('NADEXUSERNAME'),
+         password=os.environ.get('NADEXPASSWORD'),
+         port=args.port,
+         mode=args.mode
+     )
+     #with daemon.DaemonContext():
+     print("main")
+     main(**config)
+     print("end")

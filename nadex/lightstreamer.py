@@ -283,7 +283,7 @@ class LSClient(object):
         """
         if subscription_key in self._subscriptions:
             server_response = self._control({
-                "LS_Table": subcription_key,
+                "LS_Table": subscription_key,
                 "LS_op": OP_DELETE
             })
             log.debug("Server response ---> <{0}>".format(server_response))

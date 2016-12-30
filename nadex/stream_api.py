@@ -1,6 +1,7 @@
 import json
 import logging
 
+from collections import defaultdict
 from .lightstreamer import LSClient, Subscription
 
 
@@ -17,6 +18,8 @@ class NadexStreamApi(object):
                                   password='XST-{}'.format(xst))
         self.ls_client_keys = []
         self.current_epics = {}
+        self.epic_details = defaultdict(dict)
+        self.last_hearbeat = 0
 
     def connect(self):
         self.ls_client_keys = []
@@ -162,8 +165,12 @@ class NadexStreamApi(object):
         key = self.ls_client.subscribe(s)
         self.current_epics[epic].append(key)
 
-    def ubsubscribe_epic(self, epic):
-        pass
+    def unsubscribe_epic(self, epic):
+        self.epic_details.pop(epic)
+        keys = self.current_epics.pop(epic, None)
+        if keys:
+            for key in keys:
+                self.unsubscribe(key)
 
     # A simple function acting as a Subscription listener
     def on_account_update(self, message):
@@ -182,13 +189,11 @@ class NadexStreamApi(object):
         logger.info("name=%s values=%s", message.get('name'), message.get('values'))
 
     def on_mge(self, message):
-        print(message)
         name = message.get('name')
         values = message.get('values') or {}
         mge = values.get('MGE')
         if name.endswith('-JSON') and mge:
             if mge.startswith('WOU '):
-                print(mge[4:])
                 mge = json.loads(mge[4:])
                 logger.info('WOU %s', mge)
                 return
@@ -196,21 +201,24 @@ class NadexStreamApi(object):
 
 
     def on_heartbeat(self, message):
-        #logger.info(message.get('name'), message.get('values'))
-        pass
+        try:
+            self.last_heartbeat = int(message.get('values', {}).get('HB'))
+        except:
+            pass
 
     def on_instrument(self, message):
         """
         Process hierarchyId3 messages
         """
+        pos = message.get('pos')
         name = message.get('name')
         values = message.get('values')
-        print(values)
         if not name.endswith('-JSON'):
-            logger.info("%s %s", message.get('name'), message.get('values'))
-
-        header= values.get('header')
-        body = values.get('body')
+            logger.warn("%s %s", message.get('name'), message.get('values'))
+            return
+        msg = json.loads(values['MGE'][4:]) # skip {"MGE": "SDM {.....
+        header= msg.get('header')
+        body = msg.get('body')
         #---
         if header and header.get('contentType') == 'InstrumentDeletionMessage':
             instrument_id = body.get('hierarchyId3')
@@ -219,8 +227,6 @@ class NadexStreamApi(object):
             if epic in self.current_epics:
                 logger.info("unsubscribe epic %s", epic)
                 self.unsubscribe_epic(epic)
-                self.current_epics.pop('epic')
-                return
         elif body:
             # header.get('contentType') == 'InstrumentCreationRefresh'
             instrument_id = body.get('persistInStrument', {}).get('hierarchyId3')
@@ -231,9 +237,10 @@ class NadexStreamApi(object):
             else:
                 logger.info("duplicate epic to add: %s", epic)
 
-    def on_price(self, item_update):
-        name = item_update.get('name', '').split('|')[1]
-        logger.info("%s %s", name, item_update.get('values'))
+    def on_price(self, message):
+        name = message.get('name', '').split('|')[1]
+        self.epic_details[name].update(message.get('values', {}))
+        logger.info("PRICE: %s %s", message.get('name'), message.get('values'))
 
     def on_market(self, message):
-        logger.info("%s %s", message.get('name'), message.get('values'))
+        logger.info("MARKET: %s %s", message.get('name'), message.get('values'))

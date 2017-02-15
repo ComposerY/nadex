@@ -11,7 +11,7 @@ def read(path):
 
 setup(
     name='nadex',
-    packages=['nadex'],
+    packages=['nadex', 'nadex.resources'],
     version=nadex.__version__,
     description='Nadex API client',
     author='Kenji Noguchi',

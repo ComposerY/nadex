@@ -1,5 +1,4 @@
-#from setuptools import setup, find_packages
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 import nadex
 
@@ -11,7 +10,7 @@ def read(path):
 
 setup(
     name='nadex',
-    packages=['nadex', 'nadex.resources'],
+    packages=find_packages(),
     version=nadex.__version__,
     description='Nadex API client',
     author='Kenji Noguchi',

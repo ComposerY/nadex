@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-import nadex
+version="0.0.2-rc"
 
 
 def read(path):
@@ -11,13 +11,14 @@ def read(path):
 setup(
     name='nadex',
     packages=find_packages(),
-    version=nadex.__version__,
+    version=version,
     description='Nadex API client',
     author='Kenji Noguchi',
     author_email='tokyo246@gmail.com',
     url='https://github.com/knoguchi/nadex',
-    download_url = 'https://github.com/knoguchi/nadex/tarball/{}'.format(nadex.__version__),
+    download_url = 'https://github.com/knoguchi/nadex/tarball/{}'.format(version),
     keywords=['nadex', 'forex', 'bitcoin', 'option', 'trading', 'api'],
+    install_requires=['requests'],
     classifiers = [
         'Development Status :: 4 - Beta',
         'Environment :: Console',

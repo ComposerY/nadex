@@ -20,7 +20,7 @@ class AvailableCash(ApiSubResource):
     resource_name = 'availablecash'
 
 
-class Funds(CreateableApiSubResource):
+class Funds(CreatableApiSubResource):
     parent_resource = 'accounts'
     resource_name = 'funds'
 
@@ -67,11 +67,11 @@ class DetailedNotes(ListableApiSubResource):
     parent_resource = 'accounts'
 
 
-class Portfolios(ListableApiSubResource, CreateableApiSubResource):
+class Portfolios(ListableApiSubResource, CreatableApiSubResource):
     resource_name = 'portfolios'
     parent_resource = 'accounts'
 
 
-class Orders(ListableApiSubResource, CreateableApiSubResource):
+class Orders(ListableApiSubResource, CreatableApiSubResource):
     resource_name = 'orders'
     parent_resource = 'accounts'

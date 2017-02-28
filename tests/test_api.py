@@ -12,11 +12,11 @@ class TestNadex(unittest.TestCase):
         self.api = NadexRestApi()
         self.api.connection = MagicMock()
 
+    '''
     def test_login(self):
         account = self.api.Account.login()
         self.api.connection.assert_called_with(3, 4, 5, key='value')
 
-    '''
     def test_get_market_id(self):
         name = 'name'
         market_list_ref = []

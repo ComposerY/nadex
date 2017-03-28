@@ -30,6 +30,7 @@ class NadexStreamApi(object):
         self.subscribe_signal_centre()
         self.subscribe_ers()
         self.subscribe_mge()
+        self.subscribe_abu()
         self.subscribe_heartbeat()
 
     def disconnect(self):
@@ -112,6 +113,15 @@ class NadexStreamApi(object):
         s.addlistener(self.on_mge)
         self.ls_client_keys.append(self.ls_client.subscribe(s))
 
+    def subscribe_abu(self):
+        s = Subscription(
+            mode="MERGE",
+            items=["V2-AD-AC_AVAILABLE_BALANCE,AC_USED_MARGIN|ACC.{account}".format(account=self.ACCOUNT)],
+            fields=["availableBalance", "usedMargin"]
+        )
+        s.addlistener(self.on_abu)
+        self.ls_client_keys.append(self.ls_client.subscribe(s))
+        
     def subscribe_heartbeat(self):
         """
         Heartbeat
@@ -188,6 +198,9 @@ class NadexStreamApi(object):
     def on_ers(self, message):
         logger.info("name=%s values=%s", message.get('name'), message.get('values'))
 
+    def on_abu(self, message):
+        logger.info("name=%s values=%s", message.get('name'), message.get('values'))
+
     def on_mge(self, message):
         name = message.get('name')
         values = message.get('values') or {}
@@ -198,7 +211,6 @@ class NadexStreamApi(object):
                 logger.info('WOU %s', mge)
                 return
         logger.info("%s %s", name, mge)
-
 
     def on_heartbeat(self, message):
         try:

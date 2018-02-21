@@ -1,6 +1,6 @@
 # Notice
 
-This project has been discontinued.   No furthre fix will be made.
+This project has been discontinued.   No further fix will be made.
 Sorry about that.
 
 -----------------------------------

@@ -1,3 +1,9 @@
+# Notice
+
+This project has been discontinued.   No furthre fix will be made.
+Sorry about that.
+
+-----------------------------------
 # Nadex API client
 
 Unofficial Nadex API client.
